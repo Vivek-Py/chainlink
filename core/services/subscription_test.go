@@ -91,13 +91,8 @@ func TestServices_NewInitiatorSubscription_PreventsDoubleDispatch(t *testing.T) 
 	initr := job.Initiators[0]
 
 	log := cltest.LogFromFixture(t, "testdata/subscription_logs.json")
-	logsChCh := make(chan chan<- models.Log, 1)
 	ethClient.On("FilterLogs", mock.Anything, mock.Anything).Maybe().Return([]models.Log{log}, nil)
-	ethClient.On("SubscribeFilterLogs", mock.Anything, mock.Anything, mock.Anything).
-		Return(subMock, nil).
-		Run(func(args mock.Arguments) { // context.Context, ethereum.FilterQuery, chan<- types.Log
-			logsChCh <- args.Get(2).(chan<- types.Log)
-		})
+	logsChCh := cltest.MockSubscribeToLogs(ethClient, subMock)
 	var count int32
 	callback := func(services.RunManager, models.LogRequest) { atomic.AddInt32(&count, 1) }
 	head := cltest.Head(0)
@@ -200,14 +195,8 @@ func TestServices_StartJobSubscription(t *testing.T) {
 			subMock := new(mocks.Subscription)
 			subMock.On("Unsubscribe").Return()
 			subMock.On("Err").Return(nil)
-			logsChCh := make(chan chan<- models.Log, 1)
+			logsChCh := cltest.MockSubscribeToLogs(ethClient, subMock)
 			ethClient.On("FilterLogs", mock.Anything, mock.Anything).Maybe().Return([]models.Log{}, nil)
-			ethClient.On("SubscribeFilterLogs", mock.Anything, mock.Anything, mock.Anything).
-				Return(subMock, nil).
-				Run(func(args mock.Arguments) { // context.Context, ethereum.FilterQuery, chan<- types.Log
-					logsChCh <- args.Get(2).(chan<- types.Log)
-				})
-
 			job := cltest.NewJob()
 			initr := models.Initiator{Type: test.initType}
 			initr.Address = test.initrAddr
@@ -274,14 +263,8 @@ func TestServices_StartJobSubscription_RunlogNoTopicMatch(t *testing.T) {
 			subMock := new(mocks.Subscription)
 			subMock.On("Unsubscribe").Return()
 			subMock.On("Err").Return(nil)
-			logsChCh := make(chan chan<- models.Log, 1)
+			logsChCh := cltest.MockSubscribeToLogs(ethClient, subMock)
 			ethClient.On("FilterLogs", mock.Anything, mock.Anything).Maybe().Return([]models.Log{}, nil)
-			ethClient.On("SubscribeFilterLogs", mock.Anything, mock.Anything, mock.Anything).
-				Return(subMock, nil).
-				Run(func(args mock.Arguments) { // context.Context, ethereum.FilterQuery, chan<- types.Log
-					logsChCh <- args.Get(2).(chan<- types.Log)
-				})
-
 			job := cltest.NewJob()
 			initr := models.Initiator{Type: "runlog"}
 			initr.Address = sharedAddr

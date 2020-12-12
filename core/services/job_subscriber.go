@@ -65,6 +65,7 @@ func (b *nextBlockWorker) setHead(h big.Int) {
 
 func (b *nextBlockWorker) Work() {
 	head := b.getHead()
+	fmt.Println("work next block")
 	err := b.runManager.ResumeAllPendingNextBlock(&head)
 	if err != nil {
 		logger.Errorw("Failed to resume confirming tasks on new head", "error", err)

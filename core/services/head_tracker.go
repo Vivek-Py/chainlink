@@ -164,6 +164,9 @@ func (ht *HeadTracker) Start() error {
 	}
 	if ht.highestSeenHead != nil {
 		logger.Debug("Tracking logs from last block ", presenters.FriendlyBigInt(ht.highestSeenHead.ToInt()), " with hash ", ht.highestSeenHead.Hash.Hex())
+		fmt.Println("start head tracker with head", ht.highestSeenHead.Number)
+	} else {
+		fmt.Println("start nil head")
 	}
 
 	ht.done = make(chan struct{})
@@ -204,6 +207,7 @@ func (ht *HeadTracker) Save(h models.Head) error {
 	}
 	ht.headMutex.Unlock()
 
+	fmt.Println("save head", h)
 	err := ht.store.IdempotentInsertHead(h)
 	if err != nil {
 		return err
@@ -249,12 +253,14 @@ func (ht *HeadTracker) listenForNewHeads() {
 		err := ht.unsubscribeFromHead()
 		logger.ErrorIf(err, "failed when unsubscribe from head")
 	}()
-
+	fmt.Println("listen for new heads")
 	for {
 		if !ht.subscribe() {
+			fmt.Println("not subscribed")
 			return
 		}
 		if err := ht.receiveHeaders(); err != nil {
+			fmt.Println("error head sub")
 			logger.Errorw(fmt.Sprintf("Error in new head subscription, unsubscribed: %s", err.Error()), "err", err)
 			continue
 		} else {
@@ -295,18 +301,22 @@ func (ht *HeadTracker) receiveHeaders() error {
 	for {
 		select {
 		case <-ht.done:
+			fmt.Println("headers done")
 			return nil
 		case blockHeader, open := <-ht.outHeaders:
 			if !open {
+				fmt.Println("out headers closed")
 				return errors.New("HeadTracker: outHeaders prematurely closed")
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), ht.totalNewHeadTimeBudget())
+			fmt.Println("handle new head")
 			if err := ht.handleNewHead(ctx, blockHeader); err != nil {
 				cancel()
 				return err
 			}
 			cancel()
 		case err, open := <-ht.headSubscription.Err():
+			fmt.Println("head sub err")
 			if open && err != nil {
 				return err
 			}
@@ -327,11 +337,13 @@ func (ht *HeadTracker) handleNewHead(ctx context.Context, head models.Head) erro
 		}
 	}(time.Now(), int64(head.Number))
 	prevHead := ht.HighestSeenHead()
-
 	logger.Debugw(fmt.Sprintf("Received new head %v", presenters.FriendlyBigInt(head.ToInt())),
 		"blockHeight", head.ToInt(),
 		"blockHash", head.Hash,
 	)
+	fmt.Println("Received new head", presenters.FriendlyBigInt(head.ToInt()),
+		"blockHeight", head.ToInt(),
+		"blockHash", head.Hash.String())
 
 	if err := ht.Save(head); err != nil {
 		return err
@@ -492,6 +504,11 @@ func (ht *HeadTracker) onNewLongestChain(ctx context.Context, headWithChain mode
 	defer ht.headMutex.Unlock()
 
 	logger.Debugw("HeadTracker initiating callbacks",
+		"headNum", headWithChain.Number,
+		"chainLength", headWithChain.ChainLength(),
+		"numCallbacks", len(ht.callbacks),
+	)
+	fmt.Println("HeadTracker initiating callbacks",
 		"headNum", headWithChain.Number,
 		"chainLength", headWithChain.ChainLength(),
 		"numCallbacks", len(ht.callbacks),

@@ -80,6 +80,7 @@ func (ec *ethConfirmer) processHead(ctx context.Context, head models.Head) error
 
 	mark := time.Now()
 
+	fmt.Println("process head eth confirmer")
 	if err := ec.CheckForReceipts(ctx, head.Number); err != nil {
 		return errors.Wrap(err, "CheckForReceipts failed")
 	}

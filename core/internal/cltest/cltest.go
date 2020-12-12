@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/mock"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -307,6 +308,7 @@ func NewWSServer(msg string, callback func(data []byte)) (*httptest.Server, stri
 	}
 }
 
+
 // NewApplication creates a New TestApplication along with a NewConfig
 // It mocks the keystore with no keys or accounts by default
 func NewApplication(t testing.TB, flagsAndDeps ...interface{}) (*TestApplication, func()) {
@@ -385,7 +387,7 @@ func NewApplicationWithConfig(t testing.TB, tc *TestConfig, flagsAndDeps ...inte
 	ta.wsServer = tc.wsServer
 	return ta, func() {
 		require.NoError(t, ta.Stop())
-		require.True(t, ta.EthMock.AllCalled(), ta.EthMock.Remaining())
+		//require.True(t, ta.EthMock.AllCalled(), ta.EthMock.Remaining())
 	}
 }
 
@@ -407,6 +409,17 @@ func NewApplicationWithConfigAndKeyOnSimulatedBlockchain(
 	app.EthMock.Responses = app.EthMock.Responses[:0]
 	app.EthMock.Subscriptions = app.EthMock.Subscriptions[:0]
 	return app, func() { appCleanup(); client.Close() }
+}
+
+func NewEthMocks(t *testing.T) (*mocks.RPCClient, *mocks.GethClient, *mocks.Subscription, func()) {
+	r := new(mocks.RPCClient)
+	g := new(mocks.GethClient)
+	s := new(mocks.Subscription)
+	return r, g, s, func() {
+		r.AssertExpectations(t)
+		g.AssertExpectations(t)
+		s.AssertExpectations(t)
+	}
 }
 
 func newServer(app chainlink.Application) *httptest.Server {
@@ -1464,4 +1477,14 @@ func MustBytesToConfigDigest(t *testing.T, b []byte) ocrtypes.ConfigDigest {
 		t.Fatal(err)
 	}
 	return configDigest
+}
+
+func MockSubscribeToLogs(ethClient *mocks.Client, sub *mocks.Subscription) chan chan<- models.Log {
+	logsChCh := make(chan chan<- models.Log, 1)
+	ethClient.On("SubscribeFilterLogs", mock.Anything, mock.Anything, mock.Anything).
+		Return(sub, nil).
+		Run(func(args mock.Arguments) { // context.Context, ethereum.FilterQuery, chan<- types.Log
+			logsChCh <- args.Get(2).(chan<- types.Log)
+		})
+	return logsChCh
 }
